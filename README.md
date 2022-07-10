@@ -1,57 +1,71 @@
-This example uses a simple maven based webapp project.
+Introduction
+This is a sample e-commerce application built for learning purposes.
 
-For build use : mvn clean package
+Here's how to deploy it on CentOS systems:
 
+Deploy Pre-Requisites
+Install FirewallD
+sudo yum install -y firewalld
+sudo service firewalld start
+sudo systemctl enable firewalld
+Deploy and Configure Database
+Install MariaDB
+sudo yum install -y mariadb-server
+sudo vi /etc/my.cnf
+sudo service mariadb start
+sudo systemctl enable mariadb
+Configure firewall for Database
+sudo firewall-cmd --permanent --zone=public --add-port=3306/tcp
+sudo firewall-cmd --reload
+Configure Database
+$ mysql
+MariaDB > CREATE DATABASE ecomdb;
+MariaDB > CREATE USER 'ecomuser'@'localhost' IDENTIFIED BY 'ecompassword';
+MariaDB > GRANT ALL PRIVILEGES ON *.* TO 'ecomuser'@'localhost';
+MariaDB > FLUSH PRIVILEGES;
+ON a multi-node setup remember to provide the IP address of the web server here: 'ecomuser'@'web-server-ip'
 
-Web stack implementation (lamp stack) in aws
-Step 1 — installing apache and updating the firewall
-Step 2 — installing mysql
-Step 3 — installing php
-Step 4 — creating a virtual host for your website using apache
-Step 5 — enable php on the website
+Load Product Inventory Information to database
+Create the db-load-script.sql
 
+cat > db-load-script.sql <<-EOF
+USE ecomdb;
+CREATE TABLE products (id mediumint(8) unsigned NOT NULL auto_increment,Name varchar(255) default NULL,Price varchar(255) default NULL, ImageUrl varchar(255) default NULL,PRIMARY KEY (id)) AUTO_INCREMENT=1;
 
-Step 1 — installing apache and updating the firewall
-sudo apt update
-sudo apt install apache2
-sudo systemctl status apache2
-curl http://localhost:80
-curl http://127.0.0.1:80
-curl -s http://169.254.169.254/latest/meta-data/public-ipv4
+INSERT INTO products (Name,Price,ImageUrl) VALUES ("Laptop","100","c-1.png"),("Drone","200","c-2.png"),("VR","300","c-3.png"),("Tablet","50","c-5.png"),("Watch","90","c-6.png"),("Phone Covers","20","c-7.png"),("Phone","80","c-8.png"),("Laptop","150","c-4.png");
 
-Logging into EC2 Instance Using Git bash
-
-# pass Below command 
-sudo apt update
-sudo apt install apache2
-sudo systemctl status apache2
-
-# Security Group Port Opened to anywhere ipv4.Ssh port 22 & http port 80
-Step 2 — installing mysql
-sudo apt install mysql-server
-sudo mysql
-ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'PassWord.1';
-## password was changed
-mysql> exit
-sudo mysql_secure_installation
-sudo mysql -p
-mysql> exit
-
-
-
-STEP 3.
-
-sudo apt install php libapache2-mod-php php-mysql
-php -v
+EOF
+Run sql script
 
 
-STEP 4
+mysql < db-load-script.sql
+Deploy and Configure Web
+Install required packages
+sudo yum install -y httpd php php-mysql
+sudo firewall-cmd --permanent --zone=public --add-port=80/tcp
+sudo firewall-cmd --reload
+Configure httpd
+Change DirectoryIndex index.html to DirectoryIndex index.php to make the php page the default page
 
+sudo sed -i 's/index.html/index.php/g' /etc/httpd/conf/httpd.conf
+Start httpd
+sudo service httpd start
+sudo systemctl enable httpd
+Download code
+sudo yum install -y git
+git clone https://github.com/kodekloudhub/learning-app-ecommerce.git /var/www/html/
+Update index.php
+Update index.php file to connect to the right database server. In this case localhost since the database is on the same server.
 
+sudo sed -i 's/172.20.1.101/localhost/g' /var/www/html/index.php
 
+              <?php
+                        $link = mysqli_connect('172.20.1.101', 'ecomuser', 'ecompassword', 'ecomdb');
+                        if ($link) {
+                        $res = mysqli_query($link, "select * from products;");
+                        while ($row = mysqli_fetch_assoc($res)) { ?>
+ON a multi-node setup remember to provide the IP address of the database server here.
 
-STEP 5 — ENABLE PHP ON THE WEBSIT
-
-
-
-
+sudo sed -i 's/172.20.1.101/localhost/g' /var/www/html/index.php
+Test
+curl http://localhost
